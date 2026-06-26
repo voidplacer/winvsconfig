@@ -8,7 +8,7 @@ try {
     $step = 1
 
     # ==========================================
-    # Step 1: Download AutoHotkey & Setup Startup
+    # Step 1: Download AutoHotkey, Setup Startup & Run Now
     # ==========================================
     Write-Progress -Activity "Applying Configuration" -Status "Configuring AutoHotkey..." -PercentComplete (($step / $totalSteps) * 100)
     
@@ -24,7 +24,7 @@ try {
     Invoke-WebRequest -Uri $exeUrl -OutFile $exePath -UseBasicParsing | Out-Null
     Invoke-WebRequest -Uri $ahkUrl -OutFile $ahkPath -UseBasicParsing | Out-Null
 
-    # Create a shortcut in the Startup folder to ensure it runs without needing admin registry association
+    # Create a shortcut in the Startup folder to ensure it runs automatically on future reboots
     $startupFolder = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
     $WshShell = New-Object -ComObject WScript.Shell
     $Shortcut = $WshShell.CreateShortcut("$startupFolder\EscVimBinds.lnk")
@@ -33,6 +33,9 @@ try {
     $Shortcut.WorkingDirectory = $ahkDir
     $Shortcut.WindowStyle = 1
     $Shortcut.Save()
+
+    # Instantly launch AutoHotkey for the current session, completely hidden
+    Start-Process -FilePath $exePath -ArgumentList "`"$ahkPath`"" -WindowStyle Hidden
     
     $step++
 
@@ -46,8 +49,12 @@ try {
         throw "VS Code 'code' command not found. Ensure VS Code is installed and in your system PATH."
     }
 
-    # Uninstall all currently installed extensions
-    $installedExtensions = code --list-extensions
+    # Temporarily relax error checking so harmless Node.js warnings do not break the script
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+
+    # Uninstall all currently installed extensions (redirecting stderr to null to hide warnings)
+    $installedExtensions = code --list-extensions 2>$null
     if ($installedExtensions) {
         foreach ($ext in $installedExtensions) {
             code --uninstall-extension $ext > $null 2>&1
@@ -65,6 +72,9 @@ try {
     foreach ($ext in $extensionsToInstall) {
         code --install-extension $ext --force > $null 2>&1
     }
+
+    # Restore strict error checking for the rest of the script
+    $ErrorActionPreference = $previousErrorAction
 
     $step++
 
